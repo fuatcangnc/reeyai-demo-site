@@ -6,7 +6,6 @@
       "name": "demo.reeyai.site",
       "url": "https://demo.reeyai.site",
       "media": "public",
-      "mediaLink": "relative",
       "publishing": "review",
       "collections": [
         "blog",
