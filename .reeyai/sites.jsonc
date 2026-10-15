@@ -1,12 +1,16 @@
 {
-	// ReeyAI site tanımları — CMS bu dosyayı okur. Elle de düzenlenebilir.
-	"sites": [
-		{
-			"key": "default",
-			"title": "ReeyAI Demo",
-			"root": ".",
-			"contentConfig": "src/content.config.ts",
-			"collections": ["blog", "authors"]
-		}
-	]
+  "version": 1,
+  "sites": [
+    {
+      "key": "root",
+      "name": "demo.reeyai.site",
+      "url": "https://demo.reeyai.site",
+      "media": "public",
+      "publishing": "review",
+      "collections": [
+        "blog",
+        "authors"
+      ]
+    }
+  ]
 }
