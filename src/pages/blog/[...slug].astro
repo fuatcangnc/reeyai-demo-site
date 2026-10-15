@@ -1,0 +1,32 @@
+---
+import { getCollection, getEntry, render } from "astro:content";
+import Base from "../../layouts/Base.astro";
+
+export async function getStaticPaths() {
+	const posts = await getCollection("blog");
+	return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const author = await getEntry("authors", post.data.author);
+---
+
+<Base title={post.data.title} description={post.data.description}>
+	<article>
+		<p class="text-sm text-zinc-500">
+			{post.data.pubDate.toISOString().slice(0, 10)}
+		</p>
+		<h1 class="mt-2 text-3xl font-bold tracking-tight">{post.data.title}</h1>
+		{
+			author && (
+				<p class="mt-2 text-sm text-zinc-400">
+					{author.data.name} · {author.data.role}
+				</p>
+			)
+		}
+		<div class="prose prose-invert mt-8 max-w-none">
+			<Content />
+		</div>
+	</article>
+</Base>
