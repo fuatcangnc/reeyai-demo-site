@@ -7,9 +7,6 @@
       "url": "https://demo.reeyai.site",
       "media": "public",
       "mediaLink": "relative",
-      "mediaR2": {
-        "prefix": "media"
-      },
       "publishing": "review",
       "collections": [
         "blog",
