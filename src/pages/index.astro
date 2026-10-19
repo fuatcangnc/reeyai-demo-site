@@ -8,8 +8,6 @@ const posts = (await getCollection("blog", ({ data }) => !data.draft)).sort(
 ---
 
 <Base title="Blog">
-	<p class="mt-2 text-zinc-400">İçeriği GitHub reposunda yaşayan Astro sitesi.</p>
-
 	<ul class="mt-10 space-y-8">
 		{
 			posts.map((post) => (
