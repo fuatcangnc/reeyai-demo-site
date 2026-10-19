@@ -4,7 +4,7 @@
     {
       "key": "root",
       "name": "demo.reeyai.site",
-      "url": "https://demo.reeyai.site",
+      "url": "http://localhost:4322",
       "media": "public",
       "publishing": "review",
       "collections": [
