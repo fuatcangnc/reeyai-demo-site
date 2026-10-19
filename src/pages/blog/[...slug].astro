@@ -13,11 +13,11 @@ const author = await getEntry("authors", post.data.author);
 ---
 
 <Base title={post.data.title} description={post.data.description}>
-	<article>
+	<article data-reeyai-content={JSON.stringify({ collection: "blog", slug: post.id })}>
 		<p class="text-sm text-zinc-500">
 			{post.data.pubDate.toISOString().slice(0, 10)}
 		</p>
-		<h1 class="mt-2 text-3xl font-bold tracking-tight">{post.data.title}</h1>
+		<h1 class="mt-2 text-3xl font-bold tracking-tight" data-reeyai-field="title">{post.data.title}</h1>
 		{
 			author && (
 				<p class="mt-2 text-sm text-zinc-400">

@@ -1,0 +1,217 @@
+---
+// ReeyAI önizleme köprüsü (ADR 0008).
+//
+// Bu betik yalnızca sayfa bir üst pencereye gömülüyken ve üst pencere
+// `reeyai:hello` gönderdiğinde etkinleşir. Normal ziyaretçi için hiçbir şey
+// yapmaz: dinleyici yok, görünür katman yok, veri gönderimi yok.
+//
+// Protokol (postMessage):
+//   parent → site : reeyai:hello | reeyai:pick-mode {on} | reeyai:unpick {path,label}
+//                   reeyai:reload | reeyai:back | reeyai:forward
+//   site → parent : reeyai:ready | reeyai:pick {selection} | reeyai:page {path,title}
+//                   reeyai:navigate {href}
+---
+
+<script is:inline>
+	(() => {
+		if (window.parent === window) return;
+
+		let active = false;
+		let picking = false;
+		let overlay = null;
+		let overlayTag = null;
+		let current = null;
+		/** path+label → seçilmiş element (kaldırma için). */
+		const picked = new Map();
+
+		const post = (message) => {
+			try {
+				window.parent.postMessage(message, "*");
+			} catch {
+				// üst pencere erişilemez
+			}
+		};
+
+		const labelOf = (element) => {
+			let name = element.tagName.toLowerCase();
+			if (element.id) name += `#${element.id}`;
+			else if (typeof element.className === "string" && element.className.trim()) {
+				const first = element.className.trim().split(/\s+/)[0];
+				if (first && !first.startsWith("reeyai-")) name += `.${first}`;
+			}
+			return name.length > 34 ? `${name.slice(0, 34)}…` : name;
+		};
+
+		const cssPath = (element) => {
+			const parts = [];
+			let node = element;
+			let guard = 0;
+			while (node && node.nodeType === 1 && guard < 5) {
+				if (node === document.body || node === document.documentElement) break;
+				let part = node.tagName.toLowerCase();
+				if (node.id) {
+					parts.unshift(`#${node.id}`);
+					break;
+				}
+				const parent = node.parentElement;
+				if (parent) {
+					const siblings = Array.from(parent.children).filter((child) => child.tagName === node.tagName);
+					if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+				}
+				parts.unshift(part);
+				node = parent;
+				guard += 1;
+			}
+			return parts.join(" > ");
+		};
+
+		const contentOf = (element) => {
+			const host = element.closest("[data-reeyai-content]");
+			if (host) {
+				try {
+					const parsed = JSON.parse(host.getAttribute("data-reeyai-content") || "{}");
+					if (parsed && typeof parsed === "object") return parsed;
+				} catch {
+					// geçersiz JSON — aşağıdaki özniteliklere düş
+				}
+			}
+			const collection = element.closest("[data-reeyai-collection]");
+			if (!collection) return null;
+			return {
+				collection: collection.getAttribute("data-reeyai-collection") || undefined,
+				slug: collection.getAttribute("data-reeyai-slug") || undefined,
+				field: element.closest("[data-reeyai-field]")?.getAttribute("data-reeyai-field") || undefined,
+			};
+		};
+
+		const describe = (element) => {
+			const text = (element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 300);
+			const html = element.outerHTML
+				.replace(/\s+/g, " ")
+				.replace(/\s*reeyai-picked\s*/g, " ")
+				.replace(/ class="\s+/g, ' class="')
+				.slice(0, 700);
+			return {
+				tag: element.tagName.toLowerCase(),
+				label: labelOf(element),
+				text,
+				html,
+				path: cssPath(element),
+				content: contentOf(element),
+			};
+		};
+
+		const ensureOverlay = () => {
+			if (overlay) return;
+			const style = document.createElement("style");
+			style.textContent =
+				"html.reeyai-picking,html.reeyai-picking *{cursor:crosshair !important}" +
+				"[data-reeyai-picked]{outline:2px solid #4f8cff !important;outline-offset:2px}";
+			document.head.appendChild(style);
+			overlay = document.createElement("div");
+			overlay.style.cssText =
+				"position:fixed;z-index:2147483000;pointer-events:none;border:2px solid #4f8cff;" +
+				"border-radius:6px;box-sizing:border-box;display:none;background:rgba(79,140,255,.06)";
+			overlayTag = document.createElement("span");
+			overlayTag.style.cssText =
+				"position:absolute;top:-20px;left:-2px;background:#4f8cff;color:#fff;" +
+				"font:500 10.5px/1.6 ui-sans-serif,system-ui;padding:1px 6px;border-radius:4px 4px 0 0;" +
+				"white-space:nowrap;max-width:260px;overflow:hidden";
+			overlay.appendChild(overlayTag);
+			document.documentElement.appendChild(overlay);
+		};
+
+		const onMove = (event) => {
+			if (!picking || !overlay) return;
+			const target = event.target;
+			if (!(target instanceof Element) || target === overlay || target === document.documentElement) {
+				overlay.style.display = "none";
+				return;
+			}
+			const rect = target.getBoundingClientRect();
+			overlay.style.display = "block";
+			overlay.style.left = `${rect.left}px`;
+			overlay.style.top = `${rect.top}px`;
+			overlay.style.width = `${rect.width}px`;
+			overlay.style.height = `${rect.height}px`;
+			overlayTag.textContent = labelOf(target);
+			current = target;
+		};
+
+		const onClick = (event) => {
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+
+			if (picking) {
+				event.preventDefault();
+				event.stopPropagation();
+				if (overlay) overlay.style.display = "none";
+				const selection = describe(target);
+				const key = `${selection.path}|${selection.label}`;
+				const existing = picked.get(key);
+				if (existing && existing.isConnected) existing.removeAttribute("data-reeyai-picked");
+				target.setAttribute("data-reeyai-picked", "");
+				picked.set(key, target);
+				post({ type: "reeyai:pick", selection });
+				return;
+			}
+
+			const anchor = target.closest("a[href]");
+			if (!anchor || anchor.target === "_blank") return;
+			const href = anchor.getAttribute("href");
+			if (!href || href.startsWith("#") || /^(mailto:|tel:|javascript:)/i.test(href)) return;
+			if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+			event.preventDefault();
+			event.stopPropagation();
+			try {
+				post({ type: "reeyai:navigate", href: new URL(href, location.href).toString() });
+			} catch {
+				// geçersiz URL
+			}
+		};
+
+		const onMessage = (event) => {
+			if (event.source !== window.parent) return;
+			const data = event.data;
+			if (!data || typeof data.type !== "string") return;
+
+			if (data.type === "reeyai:hello") {
+				ensureOverlay();
+				if (!active) {
+					document.addEventListener("mousemove", onMove, true);
+					document.addEventListener("click", onClick, true);
+					active = true;
+				}
+				post({ type: "reeyai:ready" });
+				post({ type: "reeyai:page", path: location.pathname, title: document.title });
+				return;
+			}
+			if (data.type === "reeyai:pick-mode") {
+				picking = Boolean(data.on);
+				document.documentElement.classList.toggle("reeyai-picking", picking);
+				if (!picking && overlay) overlay.style.display = "none";
+				return;
+			}
+			if (data.type === "reeyai:unpick") {
+				const key = `${data.path}|${data.label}`;
+				const element = picked.get(key);
+				if (element) element.removeAttribute("data-reeyai-picked");
+				picked.delete(key);
+				return;
+			}
+			if (data.type === "reeyai:reload") {
+				location.reload();
+				return;
+			}
+			if (data.type === "reeyai:back") {
+				history.back();
+				return;
+			}
+			if (data.type === "reeyai:forward") {
+				history.forward();
+			}
+		};
+
+		window.addEventListener("message", onMessage);
+	})();
+</script>

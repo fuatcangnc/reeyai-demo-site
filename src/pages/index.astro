@@ -13,10 +13,11 @@ const posts = (await getCollection("blog", ({ data }) => !data.draft)).sort(
 	<ul class="mt-10 space-y-8">
 		{
 			posts.map((post) => (
-				<li>
+				<li data-reeyai-content={JSON.stringify({ collection: "blog", slug: post.id })}>
 					<a
 						href={`/blog/${post.id}`}
 						class="text-xl font-semibold hover:underline"
+						data-reeyai-field="title"
 					>
 						{post.data.title}
 					</a>
@@ -24,7 +25,7 @@ const posts = (await getCollection("blog", ({ data }) => !data.draft)).sort(
 						{post.data.pubDate.toISOString().slice(0, 10)}
 						{post.data.tags.length > 0 && <> · {post.data.tags.join(", ")}</>}
 					</p>
-					<p class="mt-1 text-zinc-300">{post.data.description}</p>
+					<p class="mt-1 text-zinc-300" data-reeyai-field="description">{post.data.description}</p>
 				</li>
 			))
 		}
