@@ -149,10 +149,21 @@
 				const selection = describe(target);
 				const key = `${selection.path}|${selection.label}`;
 				const existing = picked.get(key);
+				const additive = Boolean(event.metaKey || event.ctrlKey || event.shiftKey);
+				// Yeni seçim varsayılan olarak ÖNCEKİNİ DEĞİŞTİRİR. Çoklu seçim
+				// yalnızca ⌘/Ctrl/Shift basılıyken eklenir (turan-widget paritesi).
+				if (!additive) {
+					for (const [oldKey, oldElement] of picked) {
+						if (oldKey !== key) {
+							if (oldElement.isConnected) oldElement.removeAttribute("data-reeyai-picked");
+							picked.delete(oldKey);
+						}
+					}
+				}
 				if (existing && existing.isConnected) existing.removeAttribute("data-reeyai-picked");
 				target.setAttribute("data-reeyai-picked", "");
 				picked.set(key, target);
-				post({ type: "reeyai:pick", selection });
+				post({ type: "reeyai:pick", selection, additive });
 				return;
 			}
 
